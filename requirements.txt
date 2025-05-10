@@ -1,14 +1,10 @@
 fastapi
-uvicorn
+uvicorn[standard] # Inkluderar gunicorn/uvloop, bra för Render
 python-dotenv
 supabase
 pydantic
 svgwrite
-fastapi
-uvicorn[standard] # [standard] inkluderar gunicorn/uvloop för produktion
-python-dotenv
-supabase
-google-cloud-aiplatform # Eller google-generativeai
-svgwrite
-Pillow # Om du använder den för bildvalidering eller bearbetning
-# Eventuellt andra paket du lagt till
+google-cloud-aiplatform
+Pillow
+python-multipart 
+# Lägg till andra paket om ditt projekt använder fler, men undvik dubbletter
