@@ -15,27 +15,13 @@ from backend.models import LLMDesignOutput, GardenPlanData, PlantData, PathData
 logger = logging.getLogger(__name__)
 # load_dotenv() # Behövs inte på Render, den använder miljövariabler direkt
 
-# ---- Säg åt Google-verktygen vilket projekt vi jobbar med ----
-try:
-    # Dessa läser vi från hemligheterna vi gav Render
-    PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
-    LOCATION = os.getenv("GOOGLE_LOCATION")
+# ---- Konfigurera Google Cloud / Gemini ----
+# aiplatform.init(project=os.getenv("GOOGLE_PROJECT_ID"), location=os.getenv("GOOGLE_LOCATION"))
+# vision_model_name = "gemini-2.0-flash-001"
+# text_model_name = "gemini-2.0-flash-001"
+# if os.getenv("GOOGLE_GEMINI_API_KEY"):
+#    genai.configure(api_key=os.getenv("GOOGLE_GEMINI_API_KEY"))
 
-    if not PROJECT_ID or not LOCATION:
-        logger.error("GOOGLE_PROJECT_ID eller GOOGLE_LOCATION är inte satta som miljövariabler!")
-        # Du kan välja att appen ska krascha här eller hantera det senare
-    else:
-        aiplatform.init(project=PROJECT_ID, location=LOCATION)
-        logger.info(f"Pratar med Google Vertex AI i projekt '{PROJECT_ID}' och plats '{LOCATION}'.")
-
-    # Vilka Gemini-modeller vi vill använda (som olika robotar)
-    VISION_MODEL_NAME = "gemini-1.0-pro-vision" # Roboten som är bra på att titta på bilder
-    TEXT_MODEL_NAME = "gemini-1.0-pro"          # Roboten som är bra på att skriva text och JSON
-except Exception as e:
-    logger.error(f"Kunde inte starta kopplingen till Vertex AI: {e}", exc_info=True)
-    # Om detta misslyckas kommer LLM-anropen nedan troligen också misslyckas.
-
-# Funktion för att be bild-roboten titta på en bild
 async def analyze_image_with_google_llm(image_url: str) -> str:
     logger.info(f"Bild-roboten ska titta på: {image_url}")
     if not image_url:
