@@ -4,8 +4,8 @@ from fastapi import HTTPException # Importera för felhantering
 # Importera Google-bibliotek här (t.ex. google.cloud.aiplatform, google.generativeai)
 # from google.cloud import aiplatform
 # import google.generativeai as genai
-from backend.models import LLMDesignOutput, GardenPlanData # Dina Pydantic-modeller
 import logging # För loggning
+from .models import LLMDesignOutput, GardenPlanData, PlantData
 
 logger = logging.getLogger(__name__)
 load_dotenv()
