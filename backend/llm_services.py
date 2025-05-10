@@ -1,11 +1,10 @@
-# backend/llm_services.py
-
 import os
 from fastapi import HTTPException
 from google.cloud import aiplatform
 from vertexai.preview.generative_models import GenerativeModel, Part, GenerationConfig
 import json
 import logging
+import httpx # Importera httpx för att hämta bilddata
 
 # Importera Pydantic-modeller
 from .models import LLMDesignOutput, GardenPlanData, PlantData, PathData
@@ -22,27 +21,24 @@ try:
     if not PROJECT_ID or not LOCATION:
         logger.error("VIKTIGT: GOOGLE_PROJECT_ID eller GOOGLE_LOCATION är inte satta som miljövariabler på Render!")
     else:
-        # Initiera Vertex AI SDK
-        # Detta bör göras en gång, t.ex. när modulen laddas.
-        # Autentisering sker automatiskt om GOOGLE_APPLICATION_CREDENTIALS är korrekt satt.
         aiplatform.init(project=PROJECT_ID, location=LOCATION)
         logger.info(f"Pratar med Google Vertex AI i projekt '{PROJECT_ID}' och plats '{LOCATION}'.")
 
         # HÄR VÄLJER DU DIN SENASTE MODELL!
         # Kontrollera tillgängligheten i din Google Cloud Console för projektet och regionen.
-        # Exempel: "gemini-1.5-flash-001" eller "gemini-2.0-flash-001"
-        CHOSEN_GEMINI_MODEL = "gemini-2.0-flash-001"  # <-- ERSÄTT MED DEN SENASTE MODELLEN DU VERIFIERAT!
+        CHOSEN_GEMINI_MODEL = "gemini-1.5-flash-001"  # Exempel, ERSÄTT MED DEN SENASTE MODELLEN DU VERIFIERAT!
+                                                      # t.ex. "gemini-2.0-flash-001" om tillgänglig
         logger.info(f"Vald Gemini-modell för användning: {CHOSEN_GEMINI_MODEL}")
 
 except Exception as e:
     logger.error(f"ALLVARLIGT FEL: Kunde inte starta kopplingen till Vertex AI: {e}", exc_info=True)
-    # CHOSEN_GEMINI_MODEL förblir None, vilket kommer att hanteras i funktionerna nedan
+    # CHOSEN_GEMINI_MODEL förblir None
 
-async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -> str: # *** actual_mime_type TILLAGD HÄR ***
-    logger.info(f"Bild-roboten ({CHOSEN_GEMINI_MODEL if CHOSEN_GEMINI_MODEL else 'Odefinierad modell'}) ska titta på: {image_url} med typ: {actual_mime_type}")
+async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -> str:
+    logger.info(f"Bild-roboten ({CHOSEN_GEMINI_MODEL if CHOSEN_GEMINI_MODEL else 'Odefinierad modell'}) ska titta på bild från URL: {image_url} med typ: {actual_mime_type}")
     
     if not image_url:
-        return "Ingen bild att titta på!"
+        return "Ingen bild att titta på (URL saknas)!"
     if not actual_mime_type:
         logger.warning("MIME-typ saknas för bildanalys, kan inte fortsätta.")
         return "Fel: Bildinformation är ofullständig (MIME-typ saknas)."
@@ -51,10 +47,17 @@ async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -
         return "Fel: AI-tjänsten för bildanalys är inte korrekt konfigurerad."
 
     try:
+        # Steg 1: Hämta bildens bytes från Supabase URL:en
+        async with httpx.AsyncClient() as client:
+            logger.info(f"Försöker hämta bilddata från: {image_url}")
+            response = await client.get(image_url)
+            response.raise_for_status() # Kasta ett fel om HTTP-status inte är 2xx
+            image_bytes = response.content
+            logger.info(f"Bilddata hämtad, storlek: {len(image_bytes)} bytes.")
+
+        # Steg 2: Skapa Part-objektet med bildens bytes istället för URL
         model = GenerativeModel(CHOSEN_GEMINI_MODEL)
-        
-        # Använd den faktiska MIME-typen som skickas med
-        image_part = Part.from_uri(uri=image_url, mime_type=actual_mime_type) 
+        image_part = Part.from_data(data=image_bytes, mime_type=actual_mime_type) 
 
         fraga_till_roboten = (
             "Titta noga på den här bilden av en trädgård på svenska. Berätta kort om: "
@@ -79,6 +82,9 @@ async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -
         logger.warning(f"Bild-roboten gav ett konstigt eller tomt svar: {svar_fran_roboten}")
         return "Tyvärr kunde jag inte förstå bilden just nu."
 
+    except httpx.HTTPStatusError as http_err:
+        logger.error(f"HTTP-fel vid hämtning av bild från Supabase URL ({image_url}): {http_err}", exc_info=True)
+        return f"Kunde inte hämta bilden från molnet för analys (HTTP-fel: {http_err.response.status_code})."
     except Exception as e:
         logger.error(f"Aj! Något gick fel när bild-roboten jobbade: {e}", exc_info=True)
         return f"Ett tekniskt fel uppstod under bildanalysen: {str(e)[:150]}"
@@ -196,7 +202,7 @@ async def get_garden_advice_from_google_llm(
         logger.warning(f"Text-roboten gav ett konstigt eller tomt svar: {svar_fran_roboten}")
         raise HTTPException(status_code=503, detail="AI:n kunde inte generera trädgårdsråd just nu.")
 
-    except HTTPException: # Skicka vidare HTTPException om den redan är skapad
+    except HTTPException: 
         raise
     except Exception as e:
         logger.error(f"Aj! Något gick fel när text-roboten jobbade: {e}", exc_info=True)
