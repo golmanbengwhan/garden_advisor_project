@@ -1,0 +1,20 @@
+# Virtuell miljö
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Miljövariabler (hemligheter)
+.env
+
+# Eventuella OS-specifika filer
+.DS_Store
+Thumbs.db
+
+# Eventuella IDE-specifika mappar
+.vscode/
+.idea/
