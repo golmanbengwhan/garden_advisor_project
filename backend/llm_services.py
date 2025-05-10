@@ -21,8 +21,8 @@ GOOGLE_LOCATION_USED = None # För loggning
 try:
     PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
     LOCATION = os.getenv("GOOGLE_LOCATION")
-    GOOGLE_PROJECT_ID_USED = PROJECT_ID # Spara för senare loggning
-    GOOGLE_LOCATION_USED = LOCATION # Spara för senare loggning
+    GOOGLE_PROJECT_ID_USED = PROJECT_ID 
+    GOOGLE_LOCATION_USED = LOCATION 
 
     if not PROJECT_ID or not LOCATION:
         logger.error("VIKTIGT: GOOGLE_PROJECT_ID eller GOOGLE_LOCATION är inte satta som miljövariabler på Render!")
@@ -31,9 +31,11 @@ try:
         logger.info(f"Försöker prata med Google Vertex AI i projekt '{PROJECT_ID}' och plats '{LOCATION}'.")
 
         # HÄR VÄLJER DU DIN SENASTE MODELL!
-        # Kontrollera tillgängligheten i din Google Cloud Console för projektet och regionen.
-        CHOSEN_GEMINI_MODEL = "gemini-2.0-flash-live-001"  # <-- UPPDATERAD TILL DEN MODELL DU VALDE!
-                                                          # VERIFIERA ATT DENNA ÄR TILLGÄNGLIG FÖR DIG!
+        # VERIFIERA DETTA EXAKTA MODELL-ID I DIN GOOGLE CLOUD CONSOLE (Vertex AI > Model Garden)
+        # FÖR DITT PROJEKT 'tradgardsleads' OCH REGION 'europe-north1'.
+        CHOSEN_GEMINI_MODEL = "gemini-2.5-flash-preview-04-17"  # <-- UPPDATERAD TILL MODELL-ID FRÅN DOKUMENTATIONEN!
+                                                              # VERIFIERA ATT DENNA ÄR TILLGÄNGLIG FÖR DIG!
+        
         logger.info(f"Vald Gemini-modell för användning: {CHOSEN_GEMINI_MODEL} (Projekt: {PROJECT_ID}, Plats: {LOCATION})")
 
 except Exception as e:
@@ -53,7 +55,6 @@ async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -
         return "Fel: AI-tjänsten för bildanalys är inte korrekt konfigurerad."
 
     try:
-        # Ta bort eventuellt avslutande frågetecken från URL:en
         clean_image_url = image_url.rstrip('?')
         logger.info(f"Rensad bild-URL för hämtning: {clean_image_url}")
 
@@ -95,6 +96,8 @@ async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -
         return f"Kunde inte hämta bilden från molnet för analys (HTTP-fel: {http_err.response.status_code})."
     except Exception as e:
         logger.error(f"Aj! Något gick fel när bild-roboten jobbade: {e}", exc_info=True)
+        if "Publisher Model" in str(e) or "is not supported" in str(e) or "was not found" in str(e):
+             return f"Ett tekniskt fel med AI-bildanalysen: Modellen '{CHOSEN_GEMINI_MODEL}' kunde inte användas. Kontrollera modellnamn och tillgänglighet i Google Cloud. Fel: {str(e)[:100]}"
         return f"Ett tekniskt fel uppstod under bildanalysen: {str(e)[:150]}"
 
 
@@ -214,4 +217,6 @@ async def get_garden_advice_from_google_llm(
         raise
     except Exception as e:
         logger.error(f"Aj! Något gick fel när text-roboten jobbade: {e}", exc_info=True)
+        if "Publisher Model" in str(e) or "is not supported" in str(e) or "was not found" in str(e):
+             raise HTTPException(status_code=503, detail=f"Ett tekniskt fel med AI-designen: Modellen '{CHOSEN_GEMINI_MODEL}' kunde inte användas. Kontrollera modellnamn och tillgänglighet i Google Cloud. Fel: {str(e)[:100]}")
         raise HTTPException(status_code=503, detail=f"Ett tekniskt fel uppstod med AI-designen: {str(e)[:150]}")
