@@ -5,7 +5,7 @@ from fastapi import HTTPException # Importera för felhantering
 # from google.cloud import aiplatform
 # import google.generativeai as genai
 import logging # För loggning
-from .models import LLMDesignOutput, GardenPlanData, PlantData
+from backend.models import LLMDesignOutput, GardenPlanData, PlantData, PathData
 
 logger = logging.getLogger(__name__)
 load_dotenv()
