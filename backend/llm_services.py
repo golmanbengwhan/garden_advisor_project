@@ -1,3 +1,5 @@
+# backend/llm_services.py
+
 import os
 from fastapi import HTTPException
 from google.cloud import aiplatform
@@ -13,25 +15,29 @@ logger = logging.getLogger(__name__)
 
 # Global variabel för vald Gemini-modell
 CHOSEN_GEMINI_MODEL = None
+GOOGLE_PROJECT_ID_USED = None # För loggning
+GOOGLE_LOCATION_USED = None # För loggning
 
 try:
     PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
     LOCATION = os.getenv("GOOGLE_LOCATION")
+    GOOGLE_PROJECT_ID_USED = PROJECT_ID # Spara för senare loggning
+    GOOGLE_LOCATION_USED = LOCATION # Spara för senare loggning
 
     if not PROJECT_ID or not LOCATION:
         logger.error("VIKTIGT: GOOGLE_PROJECT_ID eller GOOGLE_LOCATION är inte satta som miljövariabler på Render!")
     else:
         aiplatform.init(project=PROJECT_ID, location=LOCATION)
-        logger.info(f"Pratar med Google Vertex AI i projekt '{PROJECT_ID}' och plats '{LOCATION}'.")
+        logger.info(f"Försöker prata med Google Vertex AI i projekt '{PROJECT_ID}' och plats '{LOCATION}'.")
 
         # HÄR VÄLJER DU DIN SENASTE MODELL!
         # Kontrollera tillgängligheten i din Google Cloud Console för projektet och regionen.
-        CHOSEN_GEMINI_MODEL = "gemini-1.5-flash-001"  # Exempel, ERSÄTT MED DEN SENASTE MODELLEN DU VERIFIERAT!
-                                                      # t.ex. "gemini-2.0-flash-001" om tillgänglig
-        logger.info(f"Vald Gemini-modell för användning: {CHOSEN_GEMINI_MODEL}")
+        # Exempel: "gemini-1.5-flash-001" eller "gemini-2.0-flash-001"
+        CHOSEN_GEMINI_MODEL = "gemini-1.5-flash-001"  # <-- ERSÄTT MED DEN SENASTE MODELLEN DU VERIFIERAT!
+        logger.info(f"Vald Gemini-modell för användning: {CHOSEN_GEMINI_MODEL} (Projekt: {PROJECT_ID}, Plats: {LOCATION})")
 
 except Exception as e:
-    logger.error(f"ALLVARLIGT FEL: Kunde inte starta kopplingen till Vertex AI: {e}", exc_info=True)
+    logger.error(f"ALLVARLIGT FEL: Kunde inte starta kopplingen till Vertex AI: {e} (Projekt: {GOOGLE_PROJECT_ID_USED}, Plats: {GOOGLE_LOCATION_USED})", exc_info=True)
     # CHOSEN_GEMINI_MODEL förblir None
 
 async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -> str:
@@ -47,15 +53,17 @@ async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -
         return "Fel: AI-tjänsten för bildanalys är inte korrekt konfigurerad."
 
     try:
-        # Steg 1: Hämta bildens bytes från Supabase URL:en
+        # Ta bort eventuellt avslutande frågetecken från URL:en
+        clean_image_url = image_url.rstrip('?')
+        logger.info(f"Rensad bild-URL för hämtning: {clean_image_url}")
+
         async with httpx.AsyncClient() as client:
-            logger.info(f"Försöker hämta bilddata från: {image_url}")
-            response = await client.get(image_url)
-            response.raise_for_status() # Kasta ett fel om HTTP-status inte är 2xx
+            logger.info(f"Försöker hämta bilddata från: {clean_image_url}")
+            response = await client.get(clean_image_url)
+            response.raise_for_status() 
             image_bytes = response.content
             logger.info(f"Bilddata hämtad, storlek: {len(image_bytes)} bytes.")
 
-        # Steg 2: Skapa Part-objektet med bildens bytes istället för URL
         model = GenerativeModel(CHOSEN_GEMINI_MODEL)
         image_part = Part.from_data(data=image_bytes, mime_type=actual_mime_type) 
 
@@ -83,7 +91,7 @@ async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -
         return "Tyvärr kunde jag inte förstå bilden just nu."
 
     except httpx.HTTPStatusError as http_err:
-        logger.error(f"HTTP-fel vid hämtning av bild från Supabase URL ({image_url}): {http_err}", exc_info=True)
+        logger.error(f"HTTP-fel vid hämtning av bild från Supabase URL ({clean_image_url}): {http_err}", exc_info=True)
         return f"Kunde inte hämta bilden från molnet för analys (HTTP-fel: {http_err.response.status_code})."
     except Exception as e:
         logger.error(f"Aj! Något gick fel när bild-roboten jobbade: {e}", exc_info=True)
