@@ -1,25 +1,20 @@
 # backend/llm_services.py
 
-# Saker vi behöver (som verktyg från en verktygslåda)
-import os  # För att läsa hemligheter som vi gav Render
-from fastapi import HTTPException # För att berätta om något går fel
-from google.cloud import aiplatform # Googles verktygslåda för Vertex AI
-from vertexai.preview.generative_models import GenerativeModel, Part, GenerationConfig # Specifika verktyg för Gemini
-import json # För att förstå svaren från Gemini
-import logging # För att skriva en dagbok om vad appen gör
+import os
+from fastapi import HTTPException
+from google.cloud import aiplatform
+from vertexai.preview.generative_models import GenerativeModel, Part, GenerationConfig
+import json
+import logging
 
-# Importera våra "ritningar" för hur datan ska se ut
-# Använder relativ import om models.py är i samma backend-mapp
-from .models import LLMDesignOutput, GardenPlanData, PlantData, PathData 
+# Importera Pydantic-modeller
+from .models import LLMDesignOutput, GardenPlanData, PlantData, PathData
 
-# Ställ in vår dagbok
 logger = logging.getLogger(__name__)
-# load_dotenv() # Behövs inte på Render, den använder miljövariabler direkt
 
-# ---- Global variabel för vår valda Gemini-modell ----
-CHOSEN_GEMINI_MODEL = None # Kommer att sättas i try-blocket nedan
+# Global variabel för vald Gemini-modell
+CHOSEN_GEMINI_MODEL = None
 
-# ---- Säg åt Google-verktygen vilket projekt vi jobbar med ----
 try:
     PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
     LOCATION = os.getenv("GOOGLE_LOCATION")
@@ -27,33 +22,39 @@ try:
     if not PROJECT_ID or not LOCATION:
         logger.error("VIKTIGT: GOOGLE_PROJECT_ID eller GOOGLE_LOCATION är inte satta som miljövariabler på Render!")
     else:
+        # Initiera Vertex AI SDK
+        # Detta bör göras en gång, t.ex. när modulen laddas.
+        # Autentisering sker automatiskt om GOOGLE_APPLICATION_CREDENTIALS är korrekt satt.
         aiplatform.init(project=PROJECT_ID, location=LOCATION)
         logger.info(f"Pratar med Google Vertex AI i projekt '{PROJECT_ID}' och plats '{LOCATION}'.")
 
         # HÄR VÄLJER DU DIN SENASTE MODELL!
         # Kontrollera tillgängligheten i din Google Cloud Console för projektet och regionen.
         # Exempel: "gemini-1.5-flash-001" eller "gemini-2.0-flash-001"
-        CHOSEN_GEMINI_MODEL = "gemini-2.0-flash-001" # <-- ERSÄTT MED DEN SENASTE MODELLEN DU VERIFIERAT!
+        CHOSEN_GEMINI_MODEL = "gemini-2.0-flash-001"  # <-- ERSÄTT MED DEN SENASTE MODELLEN DU VERIFIERAT!
         logger.info(f"Vald Gemini-modell för användning: {CHOSEN_GEMINI_MODEL}")
 
 except Exception as e:
     logger.error(f"ALLVARLIGT FEL: Kunde inte starta kopplingen till Vertex AI: {e}", exc_info=True)
     # CHOSEN_GEMINI_MODEL förblir None, vilket kommer att hanteras i funktionerna nedan
 
-# Funktion för att be bild-roboten titta på en bild
-async def analyze_image_with_google_llm(image_url: str) -> str:
-    logger.info(f"Bild-roboten ska titta på: {image_url}")
+async def analyze_image_with_google_llm(image_url: str, actual_mime_type: str) -> str: # *** actual_mime_type TILLAGD HÄR ***
+    logger.info(f"Bild-roboten ({CHOSEN_GEMINI_MODEL if CHOSEN_GEMINI_MODEL else 'Odefinierad modell'}) ska titta på: {image_url} med typ: {actual_mime_type}")
+    
     if not image_url:
         return "Ingen bild att titta på!"
-
+    if not actual_mime_type:
+        logger.warning("MIME-typ saknas för bildanalys, kan inte fortsätta.")
+        return "Fel: Bildinformation är ofullständig (MIME-typ saknas)."
     if not CHOSEN_GEMINI_MODEL:
         logger.error("analyze_image_with_google_llm: Vertex AI är inte korrekt initierad (CHOSEN_GEMINI_MODEL är None).")
         return "Fel: AI-tjänsten för bildanalys är inte korrekt konfigurerad."
 
     try:
-        model = GenerativeModel(CHOSEN_GEMINI_MODEL) # Använd den valda modellen
+        model = GenerativeModel(CHOSEN_GEMINI_MODEL)
         
-        image_part = Part.from_uri(uri=image_url)  # Förutsätter JPEG, kan behöva anpassas
+        # Använd den faktiska MIME-typen som skickas med
+        image_part = Part.from_uri(uri=image_url, mime_type=actual_mime_type) 
 
         fraga_till_roboten = (
             "Titta noga på den här bilden av en trädgård på svenska. Berätta kort om: "
@@ -80,17 +81,15 @@ async def analyze_image_with_google_llm(image_url: str) -> str:
 
     except Exception as e:
         logger.error(f"Aj! Något gick fel när bild-roboten jobbade: {e}", exc_info=True)
-        # Returnera ett mer informativt fel till din main.py som kan bli en HTTPException
         return f"Ett tekniskt fel uppstod under bildanalysen: {str(e)[:150]}"
 
 
-# Funktion för att be text-roboten designa trädgården
 async def get_garden_advice_from_google_llm(
     image_analysis_text: str,
     user_location: str,
     user_preferences: str
 ) -> LLMDesignOutput:
-    logger.info(f"Text-roboten ska designa en trädgård. Info: Plats='{user_location}', Bildanalys='{image_analysis_text[:50]}...'")
+    logger.info(f"Text-roboten ({CHOSEN_GEMINI_MODEL if CHOSEN_GEMINI_MODEL else 'Odefinierad modell'}) ska designa en trädgård. Info: Plats='{user_location}', Bildanalys='{image_analysis_text[:50]}...'")
 
     if not CHOSEN_GEMINI_MODEL:
         logger.error("get_garden_advice_from_google_llm: Vertex AI är inte korrekt initierad (CHOSEN_GEMINI_MODEL är None).")
@@ -143,16 +142,13 @@ async def get_garden_advice_from_google_llm(
     """
 
     try:
-        model = GenerativeModel(CHOSEN_GEMINI_MODEL) # Använd den valda modellen
+        model = GenerativeModel(CHOSEN_GEMINI_MODEL)
 
         svar_fran_roboten = await model.generate_content_async(
             instruktion_till_roboten,
             generation_config=GenerationConfig(
-                temperature=0.7, # Lite mer kreativitet
+                temperature=0.7,
                 max_output_tokens=2048,
-                # Försök få Gemini att generera JSON direkt. För nyare SDK-versioner kan detta vara:
-                # response_mime_type="application/json" 
-                # eller via candidate.finish_reason == "SAFETY" etc. och candidate.safety_ratings
             )
         )
 
@@ -163,7 +159,7 @@ async def get_garden_advice_from_google_llm(
                 json_text_svar = json_text_svar[len("```json"):]
             if json_text_svar.endswith("```"):
                 json_text_svar = json_text_svar[:-len("```")]
-            json_text_svar = json_text_svar.strip() # Ta bort eventuella extra blanksteg
+            json_text_svar = json_text_svar.strip()
             
             logger.debug(f"Rå JSON från LLM: {json_text_svar}")
 
@@ -181,7 +177,6 @@ async def get_garden_advice_from_google_llm(
                 raw_plan_data = llm_data["garden_plan_data"]
                 plants_list = [PlantData(**p) for p in raw_plan_data.get("plants", [])]
                 paths_list = [PathData(**p) for p in raw_plan_data.get("paths", [])] if raw_plan_data.get("paths") is not None else []
-
 
                 garden_plan = GardenPlanData(
                     area_width_cm=raw_plan_data.get("area_width_cm", 500),
@@ -201,7 +196,7 @@ async def get_garden_advice_from_google_llm(
         logger.warning(f"Text-roboten gav ett konstigt eller tomt svar: {svar_fran_roboten}")
         raise HTTPException(status_code=503, detail="AI:n kunde inte generera trädgårdsråd just nu.")
 
-    except HTTPException:
+    except HTTPException: # Skicka vidare HTTPException om den redan är skapad
         raise
     except Exception as e:
         logger.error(f"Aj! Något gick fel när text-roboten jobbade: {e}", exc_info=True)
