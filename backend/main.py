@@ -20,7 +20,8 @@ app = FastAPI(title="Trädgårdsrådgivare AI API")
 
 # CORS-inställningar (ANPASSA allowed_origins)
 allowed_origins = [
-    "https://din-webnode-sida.webnode.se",
+    "https://edenpaths.se",
+    "https://garden-advisor-project.onrender.com",
     "http://127.0.0.1:5500",
     "http://localhost:5500",
 ]
