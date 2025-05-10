@@ -53,7 +53,7 @@ async def analyze_image_with_google_llm(image_url: str) -> str:
     try:
         model = GenerativeModel(CHOSEN_GEMINI_MODEL) # Använd den valda modellen
         
-        image_part = Part.from_uri(uri=image_url, mime_type="image/jpeg") # Förutsätter JPEG, kan behöva anpassas
+        image_part = Part.from_uri(uri=image_url)  # Förutsätter JPEG, kan behöva anpassas
 
         fraga_till_roboten = (
             "Titta noga på den här bilden av en trädgård på svenska. Berätta kort om: "
