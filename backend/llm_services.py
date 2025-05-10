@@ -32,8 +32,8 @@ try:
 
         # HÄR VÄLJER DU DIN SENASTE MODELL!
         # Kontrollera tillgängligheten i din Google Cloud Console för projektet och regionen.
-        # Exempel: "gemini-1.5-flash-001" eller "gemini-2.0-flash-001"
-        CHOSEN_GEMINI_MODEL = "gemini-1.5-flash-001"  # <-- ERSÄTT MED DEN SENASTE MODELLEN DU VERIFIERAT!
+        CHOSEN_GEMINI_MODEL = "gemini-2.0-flash-live-001"  # <-- UPPDATERAD TILL DEN MODELL DU VALDE!
+                                                          # VERIFIERA ATT DENNA ÄR TILLGÄNGLIG FÖR DIG!
         logger.info(f"Vald Gemini-modell för användning: {CHOSEN_GEMINI_MODEL} (Projekt: {PROJECT_ID}, Plats: {LOCATION})")
 
 except Exception as e:
