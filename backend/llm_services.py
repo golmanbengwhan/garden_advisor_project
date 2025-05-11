@@ -1,5 +1,3 @@
-# backend/llm_services.py
-
 import os
 from fastapi import HTTPException
 from google.cloud import aiplatform
@@ -33,7 +31,7 @@ try:
         # HÄR VÄLJER DU DIN SENASTE MODELL!
         # VERIFIERA DETTA EXAKTA MODELL-ID I DIN GOOGLE CLOUD CONSOLE (Vertex AI > Model Garden)
         # FÖR DITT PROJEKT 'tradgardsleads' OCH REGION 'europe-north1'.
-        CHOSEN_GEMINI_MODEL = "gemini-2.5-flash-preview-04-17"  # <-- UPPDATERAD TILL MODELL-ID FRÅN DOKUMENTATIONEN!
+        CHOSEN_GEMINI_MODEL = "gemini-2.5-pro-preview-05-06"  # <-- UPPDATERAD TILL MODELL-ID FRÅN DOKUMENTATIONEN!
                                                               # VERIFIERA ATT DENNA ÄR TILLGÄNGLIG FÖR DIG!
         
         logger.info(f"Vald Gemini-modell för användning: {CHOSEN_GEMINI_MODEL} (Projekt: {PROJECT_ID}, Plats: {LOCATION})")
